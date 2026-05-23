@@ -107,6 +107,15 @@ cd C:\Development\ai-builder\donum-print-agent
 .\install-service.ps1
 ```
 
+ Option 1: Bypass for this script only (run in Admin PowerShell):                                                                                                  
+  powershell -ExecutionPolicy Bypass -File ".\install-service.ps1"                                                                                                  
+                                                                                                                                                                    
+  Option 2: Change policy permanently (run in Admin PowerShell):                                                                                                    
+  Set-ExecutionPolicy RemoteSigned -Scope CurrentUser                                                                                                               
+                                                                                                                                                                    
+  Then run the script normally:                                                                                                                                     
+  .\install-service.ps1            
+  
 This creates a Windows Scheduled Task that:
 - Starts the agent at system boot (before any user logs in)
 - Runs in the background with no console window
