@@ -96,10 +96,42 @@ healthy run looks like this:
 | `Print FAILED for order ...`           | The printer name is wrong, or the printer is offline.     |
 | Connection drops, then reconnects      | Normal — the agent reconnects automatically every 5s.     |
 
-## Run it automatically (optional)
+## Run it automatically (recommended)
 
-So the agent starts with Windows and restarts if it crashes, run it as a
-service with [NSSM](https://nssm.cc/):
+So the agent starts with Windows and restarts if it crashes, use the included
+installer script:
+
+```powershell
+# Run PowerShell as Administrator, then:
+cd C:\Development\ai-builder\donum-print-agent
+.\install-service.ps1
+```
+
+This creates a Windows Scheduled Task that:
+- Starts the agent at system boot (before any user logs in)
+- Runs in the background with no console window
+- Auto-restarts if the agent crashes
+
+**Commands after installation:**
+
+```powershell
+# Start/stop manually
+Start-ScheduledTask -TaskName "DonumPrintAgent"
+Stop-ScheduledTask -TaskName "DonumPrintAgent"
+
+# Check status
+Get-ScheduledTask -TaskName "DonumPrintAgent" | Select-Object State
+
+# View recent logs
+Get-Content print-agent.log -Tail 50
+
+# Uninstall
+.\install-service.ps1 -Uninstall
+```
+
+### Alternative: NSSM
+
+You can also use [NSSM](https://nssm.cc/) to run the agent as a Windows service:
 
 ```sh
 nssm install DonumPrintAgent "C:\Python\python.exe" "C:\donum-print-agent\agent.py"
