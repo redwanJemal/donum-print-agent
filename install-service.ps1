@@ -23,11 +23,32 @@ $TaskName = "DonumPrintAgent"
 $AgentDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $AgentScript = Join-Path $AgentDir "agent.py"
 
-# Uninstall if requested
+# Uninstall if requested -- removes EVERY autostart method and stops the agent,
+# so a machine with any prior setup (boot task and/or login launcher) ends clean.
 if ($Uninstall) {
-    Write-Host "Removing scheduled task '$TaskName'..."
-    Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
-    Write-Host "Done. Task removed."
+    Write-Host "Removing Donum Print Agent setup..."
+
+    # 1) Scheduled tasks: the boot task plus any leftover self-test task.
+    foreach ($t in @($TaskName, 'DonumPrintSelftest', 'DonumSelftest')) {
+        if (Get-ScheduledTask -TaskName $t -ErrorAction SilentlyContinue) {
+            Unregister-ScheduledTask -TaskName $t -Confirm:$false -ErrorAction SilentlyContinue
+            Write-Host "  Removed scheduled task: $t"
+        }
+    }
+
+    # 2) Per-user login launcher (Startup-folder shortcut).
+    $lnk = Join-Path ([Environment]::GetFolderPath('Startup')) 'Donum Print Agent.lnk'
+    if (Test-Path $lnk) { Remove-Item $lnk -Force; Write-Host "  Removed Startup shortcut: $lnk" }
+
+    # 3) Stop launcher loops first (so they don't relaunch the agent), then the agent.
+    Get-CimInstance Win32_Process -Filter "Name='wscript.exe' OR Name='cmd.exe'" |
+        Where-Object { $_.CommandLine -like '*run-hidden*' -or $_.CommandLine -like '*run-forever*' } |
+        ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue; Write-Host "  Stopped launcher PID $($_.ProcessId)" }
+    Get-CimInstance Win32_Process -Filter "Name='pythonw.exe' OR Name='python.exe'" |
+        Where-Object { $_.CommandLine -like '*agent.py*' } |
+        ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue; Write-Host "  Stopped agent PID $($_.ProcessId)" }
+
+    Write-Host "Done. All agent autostart entries removed and the agent stopped." -ForegroundColor Green
     exit 0
 }
 

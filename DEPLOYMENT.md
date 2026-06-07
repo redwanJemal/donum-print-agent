@@ -19,6 +19,41 @@ Each store is one PC + one printer + its **own** `AGENT_API_KEY`.
 
 ---
 
+## Already have a setup on this machine? Remove it first
+
+**Skip this on a brand-new PC.** If the machine was set up before — any earlier
+version, a boot task, or the login launcher — clear it first so you don't end up
+with **two agents on one API key (every receipt prints twice)**.
+
+One command does the full teardown. Run PowerShell **as Administrator** from the
+agent folder:
+
+```powershell
+cd C:\donum-print-agent
+powershell -ExecutionPolicy Bypass -File .\install-service.ps1 -Uninstall
+```
+
+That removes **all** autostart methods and stops the agent:
+- the `DonumPrintAgent` SYSTEM boot task (and any leftover self-test task),
+- the per-user **Startup-folder shortcut** (login launcher),
+- any running `wscript`/`cmd` launcher loop and `agent.py` process.
+
+Then confirm nothing is left:
+
+```powershell
+Get-ScheduledTask DonumPrintAgent -ErrorAction SilentlyContinue      # expect: nothing
+Test-Path (Join-Path ([Environment]::GetFolderPath('Startup')) 'Donum Print Agent.lnk')  # expect: False
+Get-CimInstance Win32_Process -Filter "Name='pythonw.exe'"           # expect: no agent
+```
+
+> If you're **decommissioning** the PC entirely (not re-deploying), also delete the
+> repo folder. Note `.env` holds the store's API key — remove it too, and consider
+> revoking that key in the Donum tenant app.
+
+Now continue with a clean install below.
+
+---
+
 ## 0. Prerequisites (on the new PC)
 
 - Windows, kept powered on during opening hours.
@@ -145,7 +180,7 @@ Get-Content C:\donum-print-agent\print-agent.log -Tail 20 -Wait
 Get-ScheduledTask DonumPrintAgent | Select State
 Start-ScheduledTask DonumPrintAgent     # start
 Stop-ScheduledTask  DonumPrintAgent     # stop
-.\install-service.ps1 -Uninstall        # remove the boot task entirely
+.\install-service.ps1 -Uninstall        # full teardown (task + login launcher + processes)
 ```
 
 For symptoms (double prints, "permission denied", connects-but-no-print, HTTP

@@ -152,9 +152,11 @@ Then **reboot, log in, and verify** (see next section). The agent starts hidden
 after you log in — for a store PC that someone logs into each morning, this is
 the right trade-off and it actually reaches the printer.
 
-> **Run only ONE launcher.** Don't combine this with the SYSTEM task, the
-> `run-forever.bat` console, or `run-hidden.vbs` — two agents on the same API
-> key means **every token prints twice**. Pick one (this one).
+> **Run only ONE launcher.** Don't combine this login launcher with the SYSTEM
+> boot task — two agents on the same API key means **every token prints twice**.
+> Pick one method. To clear a previous setup first, run
+> `.\install-service.ps1 -Uninstall` (as Administrator) — it removes the boot
+> task, this Startup shortcut, and stops any running agent.
 
 ---
 
@@ -216,8 +218,6 @@ Now issue a token in the Donum QMS app — it should print **once**.
 | `DEPLOYMENT.md`           | **New-machine runbook** — boot-start as SYSTEM, the production method.  |
 | `install-service.ps1`     | Installs the SYSTEM boot task (`DonumPrintAgent`). See `DEPLOYMENT.md`. |
 | `run-hidden-forever.vbs`  | Login-session launcher (fallback) — hidden, auto-restart, runs as you.  |
-| `run-forever.bat`         | Visible-console launcher with restart loop (manual / debugging).        |
-| `run-hidden.vbs`          | Hidden launcher, single-shot (no restart loop).                        |
 | `print-agent.log`         | Rotating log file.                                                      |
 
 ---
