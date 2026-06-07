@@ -102,14 +102,24 @@ Set-ItemProperty 'HKCU:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Windows' -N
 
 ---
 
-## 5. Run automatically at login (recommended)
+## 5. Run automatically — two methods
 
-> **Do NOT use a SYSTEM service / boot task for a USB receipt printer.** A task
-> that runs as `SYSTEM` (session 0) starts *before* you log in and **cannot
-> reliably reach a USB printer that lives in your desktop session** — it
-> connects but silently fails to print. Run the agent in **your own login
-> session** instead, as below. (The old `install-service.ps1` SYSTEM task is
-> kept only for reference; see the appendix.)
+There are two ways to keep the agent running. Pick **one**.
+
+- **Boot task as SYSTEM (recommended for unattended tills).** Starts at boot
+  **before anyone logs in**, so it survives an unattended reboot to the lock
+  screen. This is the method used in production — see **[`DEPLOYMENT.md`](DEPLOYMENT.md)**
+  for the full new-machine runbook. It works as long as the printer **driver is
+  installed machine-wide** (the usual case for a USB ESC/POS driver); the runbook
+  includes a step to *verify SYSTEM can actually print* before you rely on it.
+- **Login-session launcher (fallback).** Runs as you, only **after you log in**.
+  Use this if a PC reboots straight to a desktop (auto-login / always logged in),
+  or if the SYSTEM verification in `DEPLOYMENT.md` step 5 fails on that machine.
+  It is described below.
+
+> **Login method's limitation:** because it starts only at *login*, the agent
+> will **not** come up after a reboot until someone signs into Windows. For a
+> till that may reboot unattended, prefer the boot task in `DEPLOYMENT.md`.
 
 The repo includes **`run-hidden-forever.vbs`** — it launches the agent with **no
 console window** and **auto-restarts** it if it ever exits. Make it start when
@@ -188,7 +198,7 @@ Now issue a token in the Donum QMS app — it should print **once**.
 | **"Permission denied" when printing a token** (in the QMS app; agent log shows *no* "Print job received") | This is an app **permission**, not the printer. Printing needs the `qms.tokens.print` permission. **Owner / Admin / Manager** have it; **Member / Viewer** do not. Give the user a Manager/Admin role, or — if printing via an **API key** (kiosk) — add the `qms.tokens.print` **scope** to that key. |
 | **A token prints two or more times**             | More than one agent is running (same API key → each prints). Keep only one launcher. Check: `Get-CimInstance Win32_Process -Filter "Name='pythonw.exe' OR Name='python.exe'"` and stop the extras (a reboot clears manual ones). |
 | **Other people's documents print on the printer**| The printer is reachable on the LAN and/or shared. Do **section 4** — unplug its network cable, unshare it, remove it as default.                              |
-| **Agent connects but nothing prints**            | If it's running as a SYSTEM boot task, it can't reach the USB printer — switch to the **login** method (section 5). Otherwise the printer is offline / wrong `PRINTER_NAME` / out of paper. |
+| **Agent connects but nothing prints**            | Printer offline / wrong `PRINTER_NAME` / out of paper. **If** it's the SYSTEM boot task, also confirm SYSTEM can reach the printer (`DEPLOYMENT.md` step 5) — if the driver is per-user only, switch to the **login** method (section 5). |
 | `AUTHENTICATION FAILED (HTTP 403)`               | `AGENT_API_KEY` is wrong or revoked. Fix `.env`, restart the agent.                                                                                           |
 | Can't reach the server                           | Wrong `CLOUD_WS_URL`, or no internet / firewall blocking outbound WSS.                                                                                        |
 | `DRY RUN (no Windows printer)`                   | Running off Windows, or `pywin32` missing. The job is saved as a `.bin` file instead of printed — useful for testing the connection only.                     |
@@ -203,21 +213,20 @@ Now issue a token in the Donum QMS app — it should print **once**.
 | ------------------------- | ----------------------------------------------------------------------- |
 | `agent.py`                | The agent itself.                                                       |
 | `.env` / `.env.example`   | Configuration (URL, API key, printer name).                            |
-| `run-hidden-forever.vbs`  | **Recommended** launcher — hidden, auto-restart, runs as you at login.  |
+| `DEPLOYMENT.md`           | **New-machine runbook** — boot-start as SYSTEM, the production method.  |
+| `install-service.ps1`     | Installs the SYSTEM boot task (`DonumPrintAgent`). See `DEPLOYMENT.md`. |
+| `run-hidden-forever.vbs`  | Login-session launcher (fallback) — hidden, auto-restart, runs as you.  |
 | `run-forever.bat`         | Visible-console launcher with restart loop (manual / debugging).        |
 | `run-hidden.vbs`          | Hidden launcher, single-shot (no restart loop).                        |
-| `install-service.ps1`     | Appendix only — installs a SYSTEM boot task (**not** advised for USB printers; see section 5). |
 | `print-agent.log`         | Rotating log file.                                                      |
 
 ---
 
-## Appendix: SYSTEM boot task (not recommended for USB printers)
+## Appendix: SYSTEM boot task details
 
-`install-service.ps1` registers a Scheduled Task that runs as **SYSTEM at boot**.
-It is kept for environments where the agent talks to a **networked** printer and
-must run with no one logged in. For a **USB** receipt printer it does **not work
-reliably** — SYSTEM runs in session 0 and can't reach the printer in your desktop
-session (it connects but prints nothing). Prefer the login method in section 5.
+`install-service.ps1` registers a Scheduled Task (`DonumPrintAgent`) that runs as
+**SYSTEM at boot** — single-instance, auto-restart, no time limit. This is the
+production autostart method; the full runbook is **[`DEPLOYMENT.md`](DEPLOYMENT.md)**.
 
 ```powershell
 # Run PowerShell as Administrator:
@@ -226,6 +235,10 @@ cd C:\path\to\donum-print-agent
 .\install-service.ps1 -Uninstall # remove it
 ```
 
-If you ever need true "before login" autostart, configure the task to run as the
+SYSTEM can print to a USB receipt printer **when the printer's driver is installed
+machine-wide** (verified with the `E-PoS printer driver`). If a particular
+machine's driver is per-user only, SYSTEM connects but prints nothing — in that
+case use the login method (section 5), or configure the task to run as the
 **store user account** with *"Run whether user is logged on or not"* (stored
-password) rather than as `SYSTEM`, so it inherits that user's printer access.
+password) so it inherits that user's printer access. `DEPLOYMENT.md` step 5 tells
+you which case you're in.
